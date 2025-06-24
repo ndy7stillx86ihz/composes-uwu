@@ -1,0 +1,9 @@
+services:
+  mysql:
+    image: mysql:8.0-debian
+    container_name: nb_core_db
+    environment:
+      - MYSQL_RANDOM_ROOT_PASSWORD=yes
+    ports:
+      - "33006:3306"
+    

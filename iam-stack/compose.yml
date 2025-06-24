@@ -1,0 +1,114 @@
+services:
+    reverse-proxy:
+        container_name: iam-rproxy
+        image: nginx:1.27.0-alpine3.19
+        ports:
+            - "443:443"
+        volumes:
+            - ./setups/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+            - ./setups/nginx/ssl:/etc/nginx/ssl:ro
+        networks:
+            - iam-env-nw
+
+    database:
+        image: mysql:8.0-debian
+        container_name: iam-db
+        environment:
+            MYSQL_ROOT_PASSWORD: wso2carbon
+            MYSQL_USER: wso2admin
+            MYSQL_PASSWORD: wso2carbon
+        ports:
+            - "3306:3306"
+        volumes:
+            - ./setups/mysql/initdb:/docker-entrypoint-initdb.d
+            - mysql_data:/var/lib/mysql
+        healthcheck:
+            test:
+                [
+                    "CMD",
+                    "mysqladmin",
+                    "ping",
+                    "-h",
+                    "localhost",
+                    "-p$MYSQL_ROOT_PASSWORD",
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 20
+            start_period: 20s
+        networks:
+            - iam-env-nw
+
+    api-manager:
+        container_name: iam-apim
+        image: wso2/wso2am:4.4.0
+        healthcheck:
+            test:
+                [
+                    "CMD",
+                    "curl",
+                    "--fail",
+                    "http://localhost:9763/services/Version",
+                ]
+            interval: 10s
+            start_period: 30s
+            retries: 20
+        volumes:
+            - ./setups/apim:/home/wso2carbon/wso2-config-volume
+        networks:
+            - iam-env-nw
+        ports:
+            - "9443:9443"
+            - "8280:8280"
+            - "8243:8243"
+        depends_on:
+            - database
+
+    identity-server:
+        image: wso2/wso2is:7.1.0
+        container_name: iam-is
+        ports:
+            - "9446:9446"
+            - "9766:9766"
+        healthcheck:
+            test:
+                [
+                    "CMD",
+                    "curl",
+                    "-k",
+                    "-f",
+                    "https://localhost:9446/oauth2/token/.well-known/openid-configuration",
+                ]
+            interval: 1m30s
+            timeout: 30s
+            retries: 5
+            start_period: 30s
+        volumes:
+            - ./setups/is:/home/wso2carbon/wso2-config-volume
+            - is_logs:/home/wso2carbon/wso2is-7.1.0/repository/logs
+        networks:
+            - iam-env-nw
+        depends_on:
+            - email
+            - database
+
+    email:
+        build:
+            context: ./setups/fakesmtp
+            dockerfile: Dockerfile
+        container_name: iam-email
+        ports:
+            - "9090:25"
+        volumes:
+            - fakesmtp_received:/output
+        networks:
+            - iam-env-nw
+
+volumes:
+    is_logs:
+    fakesmtp_received:
+    mysql_data:
+
+networks:
+    iam-env-nw:
+        driver: bridge

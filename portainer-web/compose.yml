@@ -1,0 +1,14 @@
+services:
+  portainer:
+    image: portainer/portainer
+    container_name: "portainer-web"
+    restart: unless-stopped
+    ports:
+      - "12000:9000"
+      - "12001:9443"
+      - "12002:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+volumes:
+  portainer_data:
